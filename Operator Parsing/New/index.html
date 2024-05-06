@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Intermediate Code Generator: Three Address Code</title>
+<style>
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: linear-gradient(to bottom, #3faad4, #182848);
+}
+
+.container {
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+  width: 900px;
+  height: 550px;
+}
+
+input[type="text"], textarea {
+  font-family: Arial, sans-serif;
+  font-size: 16px;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  margin-bottom: 10px;
+  width: calc(100% - 16px);
+  box-sizing: border-box;
+}
+
+textarea {
+  height: 200px;
+  resize: none;
+}
+
+.button {
+  font-family: Arial, sans-serif;
+  font-size: 16px;
+  padding: 8px 20px;
+  border-radius: 5px;
+  background-color: #4e95c5;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  margin-right: 8px;
+}
+
+.button:hover {
+  background-color: #296e9c;
+}
+
+.label {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 20px;
+  margin-top: 8px;
+  display: block;
+}
+
+.button-container {
+  text-align: center;
+  margin-top: 10px;
+}
+
+.button-container .button {
+  margin-right: 10px;
+}
+
+h1 {
+  text-align: center;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 35px;
+  color: #333;
+  margin-bottom: 20px;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Intermediate Code Generator: Three Address Code</h1>
+  <label for="expression" class="label">Enter Expression:</label>
+  <input type="text" id="expression" placeholder="e.g., a + b * (c - d)"><br><br>
+  <div class="button-container">
+    <button class="button" onclick="generateCode('3Address')">Generate 3 Address Code</button>
+    <button class="button" onclick="generateCode('Quadruples')">Generate Quadruples</button>
+    <button class="button" onclick="generateCode('Triples')">Generate Triples</button>
+    <button class="button" onclick="generateIndirectTriples()">Generate Indirect Triples</button>
+  </div>
+  <br>
+  <label for="code" class="label">Output:</label><br>
+  <textarea id="output" readonly placeholder="Generated code will be displayed here"></textarea>
+</div>
+
+<script>
+function generate3AddressCode(expression) {
+  let code = "";
+  let tempCount = 0;
+  let tempStack = [];
+  let operatorStack = [];
+  let precedence = {
+    "+": 1,
+    "-": 1,
+    "*": 2,
+    "/": 2
+  };
+  let assignmentTarget;
+
+  function generateTemp() {
+    let temp = "t" + tempCount;
+    tempCount++;
+    return temp;
+  }
+
+  function generateCodeFromStack() {
+    let operator = operatorStack.pop();
+    let temp2 = tempStack.pop();
+    let temp1 = tempStack.pop();
+    let temp = generateTemp();
+    code += temp + " = " + temp1 + " " + operator + " " + temp2 + "\n";
+    tempStack.push(temp);
+  }
+
+  for (let i = 0; i < expression.length; i++) {
+    let char = expression[i];
+    if (/[a-zA-Z]/.test(char)) {
+      if (!assignmentTarget) {
+        assignmentTarget = char;
+      } else {
+        tempStack.push(char);
+      }
+    } else if (/\d/.test(char)) {
+      let temp = generateTemp();
+      code += temp + " = " + char + "\n";
+      tempStack.push(temp);
+    } else if (/[+\-*/]/.test(char)) {
+      while (operatorStack.length > 0 && precedence[char] <= precedence[operatorStack[operatorStack.length - 1]]) {
+        generateCodeFromStack();
+      }
+      operatorStack.push(char);
+    } else if (char === "(") {
+      operatorStack.push(char);
+    } else if (char === ")") {
+      while (operatorStack[operatorStack.length - 1] !== "(") {
+        generateCodeFromStack();
+      }
+      operatorStack.pop();
+    }
+  }
+
+  while (operatorStack.length > 0) {
+    generateCodeFromStack();
+  }
+
+  if (assignmentTarget) {
+    let rhs = tempStack.pop();
+    code = assignmentTarget + " = " + rhs + "\n" + code;
+  }
+
+  return code;
+}
+
+function generateQuadruplesFromExpression(expression) {
+  let quadruples = "";
+  let tempCount = 0;
+  let quadrupleStack = [];
+  let operatorStack = [];
+  let precedence = {
+    "+": 1,
+    "-": 1,
+    "*": 2,
+    "/": 2
+  };
+  let currentTemp;
+
+  function generateTemp() {
+    let temp = "t" + tempCount;
+    tempCount++;
+    return temp;
+  }
+
+  function generateQuadruple(operator, operand1, operand2, result) {
+    quadruples += "(" + operator + ", " + operand1 + ", " + operand2 + ", " + result + ")\n";
+  }
+
+  for (let i = 0; i < expression.length; i++) {
+    let char = expression[i];
+    if (/[a-zA-Z]/.test(char)) {
+      quadrupleStack.push(char);
+    } else if (/\d/.test(char)) {
+      currentTemp = generateTemp();
+      quadrupleStack.push(currentTemp);
+      quadruples += "(=, " + char + ", , " + currentTemp + ")\n";
+    } else if (/[+\-*/]/.test(char)) {
+      while (operatorStack.length > 0 && precedence[char] <= precedence[operatorStack[operatorStack.length - 1]]) {
+        let operator = operatorStack.pop();
+        let operand2 = quadrupleStack.pop();
+        let operand1 = quadrupleStack.pop();
+        let result = generateTemp();
+        generateQuadruple(operator, operand1, operand2, result);
+        quadrupleStack.push(result);
+      }
+      operatorStack.push(char);
+    } else if (char === "(") {
+      operatorStack.push(char);
+    } else if (char === ")") {
+      while (operatorStack[operatorStack.length - 1] !== "(") {
+        let operator = operatorStack.pop();
+        let operand2 = quadrupleStack.pop();
+        let operand1 = quadrupleStack.pop();
+        let result = generateTemp();
+        generateQuadruple(operator, operand1, operand2, result);
+        quadrupleStack.push(result);
+      }
+      operatorStack.pop(); // Discard the "("
+    }
+  }
+
+  while (operatorStack.length > 0) {
+    let operator = operatorStack.pop();
+    let operand2 = quadrupleStack.pop();
+    let operand1 = quadrupleStack.pop();
+    let result = generateTemp();
+    generateQuadruple(operator, operand1, operand2, result);
+    quadrupleStack.push(result);
+  }
+
+  return quadruples;
+}
+
+function generateTriplesFromExpression(expression) {
+  let triples = "";
+  let tempCount = 0;
+  let tripleStack = [];
+  let operatorStack = [];
+  let precedence = {
+    "+": 1,
+    "-": 1,
+    "*": 2,
+    "/": 2
+  };
+  let currentTemp;
+
+  function generateTemp() {
+    let temp = "t" + tempCount;
+    tempCount++;
+    return temp;
+  }
+
+  function generateTriple(operator, operand1, operand2) {
+    triples += "(" + operator + ", " + operand1 + ", " + operand2 + ")\n";
+  }
+
+  for (let i = 0; i < expression.length; i++) {
+    let char = expression[i];
+    if (/[a-zA-Z]/.test(char)) {
+      tripleStack.push(char);
+    } else if (/\d/.test(char)) {
+      currentTemp = generateTemp();
+      tripleStack.push(currentTemp);
+      triples += "(=, " + char + ", " + currentTemp + ")\n";
+    } else if (/[+\-*/]/.test(char)) {
+      while (operatorStack.length > 0 && precedence[char] <= precedence[operatorStack[operatorStack.length - 1]]) {
+        let operator = operatorStack.pop();
+        let operand2 = tripleStack.pop();
+        let operand1 = tripleStack.pop();
+        generateTriple(operator, operand1, operand2);
+        let result = generateTemp();
+        tripleStack.push(result);
+      }
+      operatorStack.push(char);
+    } else if (char === "(") {
+      operatorStack.push(char);
+    } else if (char === ")") {
+      while (operatorStack[operatorStack.length - 1] !== "(") {
+        let operator = operatorStack.pop();
+        let operand2 = tripleStack.pop();
+        let operand1 = tripleStack.pop();
+        generateTriple(operator, operand1, operand2);
+        let result = generateTemp();
+        tripleStack.push(result);
+      }
+      operatorStack.pop(); // Discard the "("
+    }
+  }
+
+  while (operatorStack.length > 0) {
+    let operator = operatorStack.pop();
+    let operand2 = tripleStack.pop();
+    let operand1 = tripleStack.pop();
+    generateTriple(operator, operand1, operand2);
+    let result = generateTemp();
+    tripleStack.push(result);
+  }
+
+  return triples;
+}
+
+function generateIndirectTriples() {
+  let expression = document.getElementById("expression").value;
+  let result = generateThreeAddressCode(expression);
+  document.getElementById("output").value = result.pointers;
+}
+
+function generateThreeAddressCode(expression) {
+  let code = "";
+  let pointers = "";
+
+  let tempCount = 0;
+  let tempStack = [];
+  let operatorStack = [];
+  let precedence = {
+    "+": 1,
+    "-": 1,
+    "*": 2,
+    "/": 2
+  };
+  let assignmentTarget;
+
+  function generateTemp() {
+    let temp = "t" + tempCount;
+    tempCount++;
+    return temp;
+  }
+
+  function generateCodeFromStack() {
+    let operator = operatorStack.pop();
+    let temp2 = tempStack.pop();
+    let temp1 = tempStack.pop();
+    let temp = generateTemp();
+    code += temp + " = " + temp1 + " " + operator + " " + temp2 + "\n";
+    tempStack.push(temp);
+    pointers += "(" + (tempCount - 2) + ") " + temp + "\n";
+  }
+
+  for (let i = 0; i < expression.length; i++) {
+    let char = expression[i];
+    if (/[a-zA-Z]/.test(char)) {
+      if (!assignmentTarget) {
+        assignmentTarget = char;
+      } else {
+        tempStack.push(char);
+      }
+    } else if (/\d/.test(char)) {
+      let temp = generateTemp();
+      code += temp + " = " + char + "\n";
+      tempStack.push(temp);
+      pointers += "(" + (tempCount - 1) + ") " + temp + "\n";
+    } else if (/[+\-*/]/.test(char)) {
+      while (operatorStack.length > 0 && precedence[char] <= precedence[operatorStack[operatorStack.length - 1]]) {
+        generateCodeFromStack();
+      }
+      operatorStack.push(char);
+    } else if (char === "(") {
+      operatorStack.push(char);
+    } else if (char === ")") {
+      while (operatorStack[operatorStack.length - 1] !== "(") {
+        generateCodeFromStack();
+      }
+      operatorStack.pop();
+    }
+  }
+
+  while (operatorStack.length > 0) {
+    generateCodeFromStack();
+  }
+
+  if (assignmentTarget) {
+    let rhs = tempStack.pop();
+    code = assignmentTarget + " = " + rhs + "\n" + code;
+  }
+
+  pointers += "(" + (tempCount - 1) + ") " + assignmentTarget + "\n";
+
+  return { code: code, pointers: pointers };
+}
+
+function generateCode(type) {
+  let expression = document.getElementById("expression").value;
+  let output = "";
+  if (type === "3Address") {
+    output = generate3AddressCode(expression);
+  } else if (type === "Quadruples") {
+    output = generateQuadruplesFromExpression(expression);
+  } else if (type === "Triples") {
+    output = generateTriplesFromExpression(expression);
+  }
+  document.getElementById("output").value = output;
+}
+</script>
+
+</body>
+</html>
